@@ -1,0 +1,35 @@
+# Change `app` to a unique name (or let `fly launch --no-deploy --copy-config` pick one).
+app = "observed-app"
+primary_region = "iad"
+
+[build]
+
+[env]
+  PORT = "8080"
+  OBSERVED_DATA = "/data"
+  # Set to "0" to start with an empty ledger instead of the labelled simulated demo campaign.
+  OBSERVED_SEED = "1"
+
+# The ledger, signing key and photos live here. One volume => exactly one machine (SQLite is single-writer).
+[mounts]
+  source = "observed_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"   # always on: keeps the live stream connected (~$2/month)
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/time"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

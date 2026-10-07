@@ -1,0 +1,6 @@
+data
+anchors
+node_modules
+test
+.git
+*.log
