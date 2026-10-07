@@ -5,13 +5,13 @@
 import { sunPosition } from '/shared/sun.js';
 import { destination, bearingDeg, rad, deg, normLon } from '/shared/geo.js';
 
-let landPromise = null;
-function loadLand() {
-  landPromise ??= fetch('/data/land-110m.json').then((r) => r.json()).then(decodeTopo);
-  return landPromise;
+const topoCache = {};
+function loadTopo(name) {
+  topoCache[name] ??= fetch(`/data/${name}.json`).then((r) => r.json());
+  return topoCache[name];
 }
 
-function decodeTopo(topo) {
+function decodeTopo(topo, objName) {
   const { scale, translate } = topo.transform;
   const arcs = topo.arcs.map((arc) => {
     let x = 0, y = 0;
@@ -31,48 +31,40 @@ function decodeTopo(topo) {
     else if (g.type === 'Polygon') polys.push(g.arcs.map(ring));
     else if (g.type === 'MultiPolygon') g.arcs.forEach((p) => polys.push(p.map(ring)));
   };
-  walk(topo.objects.land);
+  walk(topo.objects[objName]);
   return polys;
 }
 
-// Rasterise land to an equirectangular mask and sample an equal-area-ish dot grid.
-async function buildDots() {
-  const polys = await loadLand();
-  const W = 1440, H = 720;
-  const cv = document.createElement('canvas');
-  cv.width = W; cv.height = H;
-  const c = cv.getContext('2d', { willReadFrequently: true });
-  c.fillStyle = '#fff';
-  for (const p of polys) {
-    c.beginPath();
-    for (const r of p) r.forEach(([lo, la], i) => { const x = ((lo + 180) / 360) * W, y = ((90 - la) / 180) * H; i ? c.lineTo(x, y) : c.moveTo(x, y); });
-    c.fill('evenodd');
-  }
-  const mask = c.getImageData(0, 0, W, H).data;
-  const isLand = (lat, lon) => mask[(Math.min(H - 1, Math.floor(((90 - lat) / 180) * H)) * W + Math.min(W - 1, Math.floor(((lon + 180) / 360) * W))) * 4 + 3] > 128;
-  const land = [], ocean = [];
-  const grid = (step, push) => {
-    for (let lat = -86; lat <= 86; lat += step) {
-      const n = Math.max(6, Math.round((360 * Math.cos(rad(lat))) / step));
-      for (let i = 0; i < n; i++) push(lat, -180 + ((i + 0.5) * 360) / n);
+// Equirectangular masks: land (filled coastlines) and borders (country outlines). Sampled per pixel.
+const TW = 2048, TH = 1024;
+async function buildTexture() {
+  const [landTopo, countryTopo] = await Promise.all([loadTopo('land-110m'), loadTopo('countries-110m')]);
+  const land = decodeTopo(landTopo, 'land'), countries = decodeTopo(countryTopo, 'countries');
+  const mk = () => { const c = document.createElement('canvas'); c.width = TW; c.height = TH; return c; };
+  const X = (lo) => ((lo + 180) / 360) * TW, Y = (la) => ((90 - la) / 180) * TH;
+  const lc = mk(), lx = lc.getContext('2d', { willReadFrequently: true });
+  lx.fillStyle = '#fff';
+  for (const p of land) { lx.beginPath(); for (const r of p) r.forEach(([lo, la], i) => (i ? lx.lineTo(X(lo), Y(la)) : lx.moveTo(X(lo), Y(la)))); lx.fill('evenodd'); }
+  const bc = mk(), bx = bc.getContext('2d', { willReadFrequently: true });
+  bx.strokeStyle = '#fff'; bx.lineWidth = 1.15; bx.lineJoin = 'round';
+  for (const p of countries) {
+    for (const r of p) {
+      bx.beginPath();
+      r.forEach(([lo, la], i) => {
+        const prev = r[i - 1];
+        // skip the artificial seams at the antimeridian and the south pole edge
+        const seam = prev && ((Math.abs(lo) > 179.9 && Math.abs(prev[0]) > 179.9 && Math.sign(lo) === Math.sign(prev[0])) || (la < -89.5 && prev[1] < -89.5));
+        if (i === 0 || seam) bx.moveTo(X(lo), Y(la)); else bx.lineTo(X(lo), Y(la));
+      });
+      bx.stroke();
     }
-  };
-  const vec = (lat, lon) => [Math.cos(rad(lat)) * Math.cos(rad(lon)), Math.cos(rad(lat)) * Math.sin(rad(lon)), Math.sin(rad(lat))];
-  grid(1.35, (la, lo) => { if (isLand(la, lo)) land.push(...vec(la, lo)); });
-  grid(2.9, (la, lo) => { if (!isLand(la, lo)) ocean.push(...vec(la, lo)); });
-  return { land: new Float32Array(land), ocean: new Float32Array(ocean) };
+  }
+  const alpha = (cx) => { const d = cx.getImageData(0, 0, TW, TH).data, o = new Uint8Array(TW * TH); for (let i = 0; i < o.length; i++) o[i] = d[i * 4 + 3]; return o; };
+  return { land: alpha(lx), border: alpha(bx) };
 }
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-
-const NB = 14; // day/night colour buckets
-const PAL = {
-  land: [[84, 98, 146, 0.62], [250, 214, 156, 0.9]],
-  ocean: [[44, 58, 98, 0.34], [84, 142, 226, 0.7]],
-};
-const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
-const bucketColors = Object.fromEntries(Object.entries(PAL).map(([k, [n, d]]) => [k, Array.from({ length: NB }, (_, i) => { const c = mix(n, d, i / (NB - 1)); return `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${c[3].toFixed(2)})`; })]));
 
 export class Globe {
   constructor(canvas, { onPick, onHover, interactive = true } = {}) {
@@ -87,11 +79,11 @@ export class Globe {
     this.autoRotate = false; this.followSun = false;
     this.pulses = [];
     this.highlightId = null;
-    this.dots = null; this.dirty = true; this.vel = 0;
+    this.tex = null; this.dirty = true; this.vel = 0;
+    this.cxFrac = 0.5; this.rFactor = 0.86;
     this.sun = sunPosition(this.time);
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
-    this.buckets = null;
-    buildDots().then((d) => { this.dots = d; this.#alloc(); this.dirty = true; }).catch(() => {});
+    buildTexture().then((t) => { this.tex = t; this.dirty = true; }).catch((e) => console.error('globe texture failed', e));
     this.ro = new ResizeObserver(() => this.#resize());
     this.ro.observe(canvas.parentElement || canvas);
     this.#resize();
@@ -106,13 +98,6 @@ export class Globe {
   }
 
   destroy() { this.running = false; this.ro.disconnect(); this.io.disconnect(); }
-
-  #alloc() {
-    const n = (this.dots.land.length + this.dots.ocean.length) / 3;
-    this.buckets = { land: Array.from({ length: NB }, () => new Float32Array(this.dots.land.length / 3 * 2)), ocean: Array.from({ length: NB }, () => new Float32Array(this.dots.ocean.length / 3 * 2)) };
-    this.counts = { land: new Int32Array(NB), ocean: new Int32Array(NB) };
-    void n;
-  }
 
   #resize() {
     const p = this.cv.parentElement || this.cv;
@@ -151,7 +136,7 @@ export class Globe {
     const cl = Math.cos(l0), sl = Math.sin(l0), cp = Math.cos(p0), sp = Math.sin(p0);
     const x1 = x * cl + y * sl, y1 = -x * sl + y * cl;
     const x2 = x1 * cp + z * sp, z2 = -x1 * sp + z * cp;
-    return { x: this.w / 2 + R * y1, y: this.h / 2 - R * z2, v: x2 };
+    return { x: this.w * this.cxFrac + R * y1, y: this.h / 2 - R * z2, v: x2 };
   }
 
   #loop(now) {
@@ -179,22 +164,20 @@ export class Globe {
     const { ctx, w, h, dpr } = this;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    const R = (Math.min(w, h) / 2) * 0.86 * this.zoom;
+    const R = ((this.cxFrac === 0.5 ? Math.min(w, h) : h) / 2) * this.rFactor * this.zoom;
     this.R = R;
-    const cx = w / 2, cy = h / 2;
+    const cx = w * this.cxFrac, cy = h / 2;
 
     // atmosphere + body
     let g = ctx.createRadialGradient(cx, cy, R * 0.9, cx, cy, R * 1.22);
     g.addColorStop(0, 'rgba(110,170,255,0.20)'); g.addColorStop(0.4, 'rgba(110,170,255,0.06)'); g.addColorStop(1, 'rgba(110,170,255,0)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 1.22, 0, 7); ctx.fill();
-    g = ctx.createRadialGradient(cx - R * 0.25, cy - R * 0.3, R * 0.1, cx, cy, R);
-    g.addColorStop(0, '#0f1730'); g.addColorStop(1, '#05080f');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
+    ctx.fillStyle = '#05080f'; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
 
     // sun vector for day/night
     const s = this.sun;
     const sv = [Math.cos(rad(s.subLat)) * Math.cos(rad(s.subLon)), Math.cos(rad(s.subLat)) * Math.sin(rad(s.subLon)), Math.sin(rad(s.subLat))];
-    if (this.dots && this.buckets) this.#drawDots(R, sv);
+    if (this.tex) this.#drawGlobe(R, sv, cx, cy);
 
     // graticule (very faint)
     ctx.lineWidth = 0.6; ctx.strokeStyle = 'rgba(160,185,255,0.07)';
@@ -222,32 +205,52 @@ export class Globe {
     this.#drawMarkers(R, now);
   }
 
-  #drawDots(R, sv) {
-    const { ctx } = this;
-    const size = Math.max(1.5, R / 135);
-    for (const type of ['ocean', 'land']) {
-      const pts = this.dots[type], counts = this.counts[type], bk = this.buckets[type];
-      counts.fill(0);
-      const l0 = rad(this.lon0), p0 = rad(this.lat0);
-      const cl = Math.cos(l0), sl = Math.sin(l0), cp = Math.cos(p0), sp = Math.sin(p0);
-      for (let i = 0; i < pts.length; i += 3) {
-        const x = pts[i], y = pts[i + 1], z = pts[i + 2];
-        const x1 = x * cl + y * sl;
-        const x2 = x1 * cp + z * sp;
-        if (x2 < 0.03) continue;
-        const y1 = -x * sl + y * cl, z2 = -x1 * sp + z * cp;
-        const elev = (Math.asin(clamp(x * sv[0] + y * sv[1] + z * sv[2], -1, 1)) * 180) / Math.PI;
-        const b = Math.min(NB - 1, Math.floor(smooth(-9, 14, elev) * NB));
-        const k = counts[b]++;
-        bk[k * 2] = this.w / 2 + R * y1; bk[k * 2 + 1] = this.h / 2 - R * z2;
-      }
-      for (let b = 0; b < NB; b++) {
-        if (!counts[b]) continue;
-        ctx.fillStyle = bucketColors[type][b];
-        const n = counts[b], arr = bk, sz = type === 'land' ? size : size * 0.62;
-        for (let k = 0; k < n; k++) ctx.fillRect(arr[k * 2] - sz / 2, arr[k * 2 + 1] - sz / 2, sz, sz);
+  // Per-pixel orthographic inverse projection: for each screen pixel inside the disc, find the
+  // latitude/longitude under it, sample land/border masks, and shade by the Sun's elevation there.
+  #drawGlobe(R, sv, cx, cy) {
+    const q = Math.min(this.dpr, 1, 720 / (2 * R));
+    const D = Math.max(8, Math.round(2 * R * q));
+    if (!this.off || this.off.width !== D) { this.off = document.createElement('canvas'); this.off.width = this.off.height = D; this.octx = this.off.getContext('2d'); this.img = this.octx.createImageData(D, D); }
+    const data = this.img.data, { land, border } = this.tex;
+    const l0 = rad(this.lon0), p0 = rad(this.lat0);
+    const cl = Math.cos(l0), sl = Math.sin(l0), cp = Math.cos(p0), sp = Math.sin(p0);
+    const half = D / 2, inv = 1 / half;
+    const PI = Math.PI, TWO = 2 * PI;
+    const s0 = sv[0], s1 = sv[1], s2 = sv[2];
+    for (let py = 0; py < D; py++) {
+      const z2 = -(py + 0.5 - half) * inv;
+      for (let px = 0; px < D; px++) {
+        const o = (py * D + px) * 4;
+        const y1 = (px + 0.5 - half) * inv;
+        const r2 = y1 * y1 + z2 * z2;
+        if (r2 >= 1) { data[o + 3] = 0; continue; }
+        const x2 = Math.sqrt(1 - r2);
+        const x1 = x2 * cp - z2 * sp, z = x2 * sp + z2 * cp;
+        const x = x1 * cl - y1 * sl, y = x1 * sl + y1 * cl;
+        const row = ((0.5 - Math.asin(z) / PI) * TH) | 0;
+        const col = ((Math.atan2(y, x) / TWO + 0.5) * TW) | 0;
+        const ti = (row < 0 ? 0 : row >= TH ? TH - 1 : row) * TW + (col < 0 ? 0 : col >= TW ? TW - 1 : col);
+        const L = land[ti] / 255, B = border[ti] / 255;
+        const sunDot = x * s0 + y * s1 + z * s2;                       // sin(solar elevation)
+        let d = (sunDot + 0.14) / 0.3; d = d < 0 ? 0 : d > 1 ? 1 : d; d = d * d * (3 - 2 * d); // twilight blend
+        // base colours: ocean / land, night → day
+        let r = (6 + 20 * d) * (1 - L) + (46 + 126 * d) * L;
+        let g = (13 + 58 * d) * (1 - L) + (58 + 108 * d) * L;
+        let b = (30 + 100 * d) * (1 - L) + (96 + 22 * d) * L;
+        if (B > 0) { const t = B * 0.85; r += ((60 + 40 * d - 30 * d * 0) - r) * t * (L > 0 ? 1 : 0.2); g += ((80 + 20 * d) - g) * t * (L > 0 ? 1 : 0.2); b += ((130 - 30 * d) - b) * t * (L > 0 ? 1 : 0.2); }
+        // ocean sun glint
+        if (!L && sunDot > 0.9) { const gl = (sunDot - 0.9) * 10; const k = gl * gl * 70; r += k; g += k * 0.9; b += k * 0.7; }
+        // limb darkening + blue atmosphere rim
+        const rim = Math.pow(1 - x2, 2.6);
+        const dim = 0.6 + 0.4 * Math.pow(x2, 0.5);
+        r = r * dim + 70 * rim * (0.35 + d); g = g * dim + 120 * rim * (0.35 + d); b = b * dim + 210 * rim * (0.35 + d);
+        data[o] = r > 255 ? 255 : r; data[o + 1] = g > 255 ? 255 : g; data[o + 2] = b > 255 ? 255 : b;
+        const edge = (1 - r2) * half * 0.9; data[o + 3] = edge >= 1 ? 255 : (edge * 255) | 0;
       }
     }
+    this.octx.putImageData(this.img, 0, 0);
+    this.ctx.imageSmoothingEnabled = true; this.ctx.imageSmoothingQuality = 'high';
+    this.ctx.drawImage(this.off, cx - R, cy - R, 2 * R, 2 * R);
   }
 
   #polyline(fn, n, R) {

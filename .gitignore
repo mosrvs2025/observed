@@ -1,4 +1,4 @@
-data/
-anchors/
+/data/
+/anchors/
 node_modules/
 *.log

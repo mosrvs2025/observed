@@ -1,6 +1,6 @@
 // A globe + a time machine. Used for the hero loop and for each experiment's Observatory.
 import { Globe } from './globe.js';
-import { html, mount, fmtUTC, esc, fmt } from './dom.js';
+import { html, mount, fmtUTC, esc, fmt, raw } from './dom.js';
 import { ICON } from './lib.js';
 
 export function campaignWindow(markers, pad = [2, 3]) {
@@ -13,6 +13,9 @@ export function campaignWindow(markers, pad = [2, 3]) {
 export function mountHeroGlobe(canvas, markers, { onTick, onPick, seconds = 34 } = {}) {
   const g = new Globe(canvas, { onPick, interactive: true });
   g.mode = 'replay'; g.followSun = true; g.fadeMs = 7 * 3600e3;
+  // Wide screens: globe lives in the right-hand column. Narrow: centred above the copy.
+  const layout = () => { const wide = window.innerWidth > 860; g.cxFrac = wide ? 0.73 : 0.5; g.rFactor = wide ? 0.82 : 0.9; g.dirty = true; };
+  layout(); window.addEventListener('resize', layout);
   g.setMarkers(markers);
   const win = campaignWindow(markers);
   let t = win ? win[0] : Date.now(), live = !win, pausedUntil = 0, raf, last = performance.now(), alive = true;
@@ -32,7 +35,7 @@ export function mountHeroGlobe(canvas, markers, { onTick, onPick, seconds = 34 }
     setLive(v) { live = v || !win; if (!live) t = win[0]; g.mode = live ? 'all' : 'replay'; g.dirty = true; },
     get live() { return live; },
     hasReplay: !!win,
-    destroy() { alive = false; cancelAnimationFrame(raf); g.destroy(); },
+    destroy() { alive = false; cancelAnimationFrame(raf); window.removeEventListener('resize', layout); g.destroy(); },
   };
 }
 
@@ -51,9 +54,9 @@ export function mountObservatory(panel, markers, { onPick, label = 'observation'
       <div class="legend" style="background:rgba(4,6,12,.7);padding:7px 12px;border-radius:999px"><span><i class="dot-real"></i>real device</span><span><i class="dot-sim"></i>simulated</span><span><i style="background:#ffb84d;height:2px;width:14px;border-radius:2px;vertical-align:3px"></i>shadow direction</span></div>
     </div>
     <div class="globe-controls">
-      <button class="icon-btn" data-play aria-label="Play">${ICON.play}</button>
+      <button class="icon-btn" data-play aria-label="Play">${raw(ICON.play)}</button>
       <input class="tl" type="range" min="0" max="1000" value="0" aria-label="Time">
-      <div class="seg" role="group" aria-label="Speed">${speeds.map(([l, v]) => `<button data-sp="${v}" class="${v === state.speed ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="seg" role="group" aria-label="Speed">${raw(speeds.map(([l, v]) => `<button data-sp="${v}" class="${v === state.speed ? 'on' : ''}">${l}</button>`).join(''))}</div>
       <div class="clock mono"></div>
     </div>
     <div class="globe-tip" hidden></div>`);
