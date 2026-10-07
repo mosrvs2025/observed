@@ -7,6 +7,8 @@ import { placeName } from '../places.js';
 import { observerName, shortId } from '/shared/names.js';
 import { analyze } from '/shared/analysis.js';
 import { renderEvidence } from './evidence.js';
+import { scoreBars } from '../charts.js';
+import { modelColor } from '../lib.js';
 import { renderModels } from './models.js';
 import { renderChallenges } from './challenges.js';
 
@@ -23,7 +25,7 @@ export async function render(root, { params: [slug, tab = 'overview'] }) {
   const simOnly = c.real === 0 && c.measured > 0;
 
   mount(root, html`
-    <div class="wrap" style="padding-top:34px">
+    <div class="wrap exp-head ${tab === 'overview' ? '' : 'compact'}" style="padding-top:34px">
       <div class="row between" style="align-items:flex-start;gap:24px">
         <div style="max-width:760px">
           <div class="eyebrow">${def.kicker} · protocol v${def.version}</div>
@@ -32,7 +34,7 @@ export async function render(root, { params: [slug, tab = 'overview'] }) {
         </div>
         <div class="row" style="gap:10px"><a class="btn primary lg" href="#/e/${slug}/run">Run this experiment</a></div>
       </div>
-      <div class="row" style="gap:34px;margin-top:26px">
+      <div class="row stats" style="gap:34px;margin-top:26px">
         <div class="stat"><span class="n">${fmtInt(c.measured)}</span><span class="l">observations</span></div>
         <div class="stat"><span class="n">${fmtInt(c.observers)}</span><span class="l">observers</span></div>
         <div class="stat"><span class="n">${c.failed}</span><span class="l">failed attempts shown</span></div>
@@ -59,14 +61,14 @@ async function overview(el, { slug, def, data, analysis }) {
   mount(el, html`
     <div class="grid g2" style="gap:28px;align-items:start">
       <div class="stack">
-        <div class="card glow">
-          <div class="row between"><span class="eyebrow">Current result</span><span class="pill ${a.rubric.label === 'Demonstration only' ? 'sim' : 'amber'}">${a.rubric.label}</span></div>
-          <p style="font-size:17px;line-height:1.55;margin:14px 0 18px">${a.headline}</p>
-          <div class="row" style="gap:18px">
-            <div class="score-ring" style="--p:${(a.rubric.score / a.rubric.outOf) * 100}"><b>${a.rubric.score}/${a.rubric.outOf}</b></div>
-            <div class="grow hint">Evidence checks passed. This is a checklist — not a verdict. See exactly what’s missing, and why, in the Evidence tab.</div>
-          </div>
-          <div style="margin-top:16px"><a class="btn sm" href="#/e/${slug}/evidence">Inspect the evidence →</a></div>
+        <div class="card glow glance">
+          <div class="row between"><span class="eyebrow">At a glance</span><span class="pill ${a.rubric.label === 'Demonstration only' ? 'sim' : 'amber'}">${a.rubric.label}</span></div>
+          <h3 class="h-md" style="margin:12px 0 4px">How well does each picture of the world match the shadows people measured?</h3>
+          <p class="hint" style="margin:0 0 16px">Shorter bar = the model’s predictions landed closer to what was actually measured (average miss, in degrees).</p>
+          <div class="stack" style="gap:14px">${raw(scoreBars(a.score.perModel, a.score.perModel.map((p, i) => modelColor(p.model, i)), '°'))}</div>
+          <p class="hint" style="margin:14px 0 0">${a.score.nObservers} observers · ${a.derived.length} measurements${a.derived.some((d) => d.synthetic) ? ' · includes simulated demo data' : ''}. Evidence checks passed: ${a.rubric.score} of ${a.rubric.outOf}.</p>
+          <div class="row" style="margin-top:14px"><a class="btn sm" href="#/e/${slug}/evidence">Inspect the evidence →</a><a class="btn sm ghost" href="#/e/${slug}/observatory">Watch it happen ▶</a></div>
+          <details class="tech"><summary>Technical summary</summary><p class="dim" style="margin:0;font-size:14px">${a.headline}</p></details>
         </div>
         <div class="card"><h3 class="h-md" style="margin-bottom:14px">Hypotheses under test</h3><ul class="plain stack">${raw([].concat(def.hypotheses.map((h) => `<li class="dim">${esc(h)}</li>`).join('')).join(''))}</ul></div>
         <div class="callout safe"><b>Safety.</b> ${esc(def.safety)}</div>
@@ -97,7 +99,7 @@ async function observatory(el, { slug, def, data }) {
     <div class="table-wrap"><table><thead><tr><th>When (UTC)</th><th>Where</th><th>Observer</th><th class="num">${slug === 'shadow-angle' ? 'Shadow angle' : 'Sun gone at'}</th><th>Flags</th></tr></thead><tbody id="rows"></tbody></table></div>
     <h2 class="h-md" style="margin:42px 0 6px">Failed attempts</h2><p class="dim" style="font-size:14.5px">Experiments fail. Showing them keeps the success rate honest.</p>
     <div class="table-wrap"><table><thead><tr><th>When (UTC)</th><th>Where</th><th>Observer</th><th>Why it failed</th></tr></thead><tbody>${raw([].concat(data.attempts.length ? data.attempts.map((a) => `<tr class="click" data-go="${a.id}"><td class="mono nowrap">${fmtUTC(a.record.captured_ms)}</td><td>${esc(placeName(a.record.location.lat, a.record.location.lon))}</td><td>${esc(observerName(a.observer_id))}</td><td>${esc(a.record.failure_reason)} ${a.synthetic ? '<span class="pill sim">simulated</span>' : ''}</td></tr>`).join('') : '<tr><td colspan="4" class="dim">None recorded yet.</td></tr>').join(''))}</tbody></table></div>`);
-  const st = mountObservatory(el.querySelector('#stage'), markers, { onPick: (m) => { location.hash = `#/o/${m.id}`; } });
+  const st = mountObservatory(el.querySelector('#stage'), markers, { kind: slug === 'shadow-angle' ? 'shadow' : 'sunset', onPick: (m) => { location.hash = `#/o/${m.id}`; } });
   const rows = el.querySelector('#rows');
   const byId = new Map(markers.map((m) => [m.id, m]));
   const repCount = {};

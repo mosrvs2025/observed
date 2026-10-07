@@ -29,7 +29,7 @@ function roundPanel(aA, aB) {
   return `<svg viewBox="0 0 360 330" role="img" aria-label="Round Earth with parallel rays">
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="#0c1730" stroke="var(--mint)" stroke-opacity=".6" stroke-width="1.5"/>
     ${rays}
-    <circle cx="340" cy="${cy}" r="11" fill="#ffb84d"/><text x="340" y="${cy + 28}" text-anchor="middle">Sun · far</text>
+    <circle cx="340" cy="${cy}" r="11" fill="#ffb84d"/><text x="352" y="${cy + 30}" text-anchor="end">Sun · far away</text>
     ${site(aA, 'A')}${site(aB, 'B')}
     <text x="${cx}" y="${cy + 4}" text-anchor="middle" fill="var(--faint)">round Earth</text>
   </svg>`;

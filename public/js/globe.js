@@ -80,7 +80,7 @@ export class Globe {
     this.pulses = [];
     this.highlightId = null;
     this.tex = null; this.dirty = true; this.vel = 0;
-    this.cxFrac = 0.5; this.rFactor = 0.86;
+    this.cxFrac = 0.5; this.rFactor = 0.86; this.labels = true;
     this.sun = sunPosition(this.time);
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
     buildTexture().then((t) => { this.tex = t; this.dirty = true; }).catch((e) => console.error('globe texture failed', e));
@@ -200,6 +200,7 @@ export class Globe {
       sg.addColorStop(0, 'rgba(255,236,190,0.95)'); sg.addColorStop(0.25, 'rgba(255,184,77,0.45)'); sg.addColorStop(1, 'rgba(255,184,77,0)');
       ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sp.x, sp.y, R * 0.16, 0, 7); ctx.fill();
       ctx.fillStyle = '#fff4d6'; ctx.beginPath(); ctx.arc(sp.x, sp.y, 3.2, 0, 7); ctx.fill();
+      if (this.labels) this.#tag(sp.x + 12, sp.y - 12, '☀ Sun is overhead here', '255,216,154', 1);
     }
 
     this.#drawMarkers(R, now);
@@ -303,6 +304,7 @@ export class Globe {
       ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, 7); ctx.fill();
       if (m.synthetic) { ctx.strokeStyle = `rgba(${col},${alpha.toFixed(2)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p.x, p.y, 3.4, 0, 7); ctx.stroke(); }
       else { ctx.fillStyle = `rgba(255,248,230,${alpha.toFixed(2)})`; ctx.beginPath(); ctx.arc(p.x, p.y, 3.6, 0, 7); ctx.fill(); ctx.strokeStyle = `rgba(${col},1)`; ctx.lineWidth = 1.5; ctx.stroke(); }
+      if (this.labels && fresh > 0.15) this.#tag(p.x + 10, p.y + 16, m.label, col, Math.min(1, fresh * 1.6));
       if (fresh > 0.02) { ctx.strokeStyle = `rgba(${col},${(fresh * 0.7).toFixed(2)})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(p.x, p.y, 4 + (1 - fresh) * 26, 0, 7); ctx.stroke(); }
       this.screen.push({ m, x: p.x, y: p.y });
     }
@@ -320,6 +322,15 @@ export class Globe {
         ctx.beginPath(); ctx.arc(p.x, p.y, 4 + kk * 46, 0, 7); ctx.stroke();
       }
     }
+  }
+
+  #tag(x, y, text, rgb, a) {
+    const { ctx } = this;
+    ctx.font = '500 12px Inter, system-ui, sans-serif';
+    const w = ctx.measureText(text).width + 14;
+    ctx.fillStyle = `rgba(5,8,16,${(0.78 * a).toFixed(2)})`;
+    ctx.beginPath(); ctx.roundRect(x, y - 10, w, 20, 10); ctx.fill();
+    ctx.fillStyle = `rgba(${rgb},${a.toFixed(2)})`; ctx.fillText(text, x + 7, y + 4);
   }
 
   nearest(x, y, maxPx = 14) {

@@ -42,12 +42,16 @@ export async function render(root, { params: [slug], query, day }) {
   function intro() {
     mount(stage, html`<div class="wiz">${head()}
       <div class="eyebrow">${def.kicker}</div><h1 style="margin-top:12px">${def.title}</h1>
-      ${target ? html`<div class="callout" style="margin-bottom:16px"><b>You’re reproducing an observation</b> from ${placeName(target.observation.record.location.lat, target.observation.record.location.lon)} (${fmtUTC(target.observation.record.captured_ms, { date: true, sec: false })}). Do your own measurement independently — anywhere, any time. Agreement is checked afterwards.</div>` : ''}
-      <p class="lede" style="margin-bottom:20px">${def.summary}</p>
-      <div class="card tight stack"><div class="lbl">You’ll need</div><ul class="plain stack">${def.equipment.map((x) => html`<li>· ${x}</li>`)}</ul></div>
+      ${isShadow ? html`<svg class="stick-anim" viewBox="0 0 420 190" aria-hidden="true"><line x1="10" y1="150" x2="410" y2="150" stroke="var(--line-2)" stroke-width="2"/><g class="shade"><line x1="150" y1="150" x2="230" y2="150" stroke="var(--amber)" stroke-width="7" stroke-linecap="round" opacity=".85"/></g><line x1="150" y1="150" x2="150" y2="72" stroke="var(--text)" stroke-width="6" stroke-linecap="round"/><g class="sunorb"><circle cx="150" cy="36" r="15" fill="var(--amber)"/><circle cx="150" cy="36" r="26" fill="var(--amber)" opacity=".18"/></g></svg>` : ''}
+      <p class="lede" style="margin-bottom:6px">${isShadow ? 'In about five minutes you’ll measure something about the Sun — with a stick — that no one told you.' : 'Watch the Sun go. Tap the exact second it disappears. You’ll join people doing the same around the world.'}</p>
+      <p class="dim">${def.summary}</p>
+      ${target ? html`<div class="callout" style="margin:16px 0"><b>You’re reproducing an observation</b> from ${placeName(target.observation.record.location.lat, target.observation.record.location.lon)}. Do your own measurement independently — anywhere, any time. We’ll compare afterwards.</div>` : ''}
+      <div class="fourstep" style="margin:20px 0"><div><small>1</small><b>Locate</b>where you’re standing</div><div><small>2</small><b>Predict</b>commit to a guess first</div><div><small>3</small><b>Measure</b>${isShadow ? 'stick + shadow' : 'the last sliver'}</div><div><small>4</small><b>Compare</b>with reality &amp; the world</div></div>
+      <div class="lbl" style="margin-bottom:8px">You’ll need</div>
+      <div class="chips">${def.equipment.map((x) => html`<span>${x}</span>`)}</div>
       <div class="callout safe" style="margin-top:16px"><b>Safety.</b> ${def.safety}</div>
-      <div class="card tight" style="margin-top:16px"><div class="lbl">How it works</div><p class="dim" style="margin:6px 0 0;font-size:14.5px">① Share your position · ② <b>predict</b> the answer (locked and timestamped) · ③ measure · ④ seal it with your device’s signature · ⑤ see how reality compares with every model. About ${isShadow ? '5' : '3 + the wait for sunset'} minutes.</p></div>
-      <div class="nav-row"><a class="btn" href="#/e/${slug}">Cancel</a><button class="btn primary lg" id="next">Start</button></div></div>`);
+      <div class="nav-row"><a class="btn" href="#/e/${slug}">Not now</a><button class="btn primary lg" id="next">Let’s go →</button></div>
+      <p class="hint" style="text-align:center">No account. Your phone signs what you measure; you can add a name later.</p></div>`);
     $('#next', stage).addEventListener('click', () => go(1));
   }
 
