@@ -69,3 +69,13 @@ test('canonical JSON is order-independent and hash-stable', async () => {
   assert.equal(await hashRecord(a), await hashRecord(b));
   assert.throws(() => canonicalize({ x: NaN }));
 });
+
+test('sphere with a very distant Sun converges on the parallel-ray model; a near Sun does not', () => {
+  const t = T('2026-09-23T12:00:00Z');
+  const spot = { lat: 40, lon: 30, t };
+  const far = predictWith({ family: 'sphere_sun_distance', params: { sun_distance_km: 4e8 } }, spot).zenith_deg;
+  const par = predictWith({ family: 'sphere_parallel', params: {} }, spot).zenith_deg;
+  assert.ok(Math.abs(far - par) < 0.01, `${far} vs ${par}`);
+  const near = predictWith({ family: 'sphere_sun_distance', params: { sun_distance_km: 10000 } }, spot).zenith_deg;
+  assert.ok(Math.abs(near - par) > 3);
+});

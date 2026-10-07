@@ -7,6 +7,7 @@ getIdentity().then((me) => { const c = $('#me-chip .nm'); if (c) c.textContent =
 
 const routes = [
   [/^\/?$/, () => import('./views/home.js'), 'home'],
+  [/^\/discover\/?$/, () => import('./views/discover.js'), 'discover'],
   [/^\/experiments\/?$/, () => import('./views/experiments.js'), 'experiments'],
   [/^\/e\/([\w-]+)\/run\/?$/, () => import('./views/run.js'), 'experiments'],
   [/^\/e\/([\w-]+)(?:\/(\w+))?\/?$/, () => import('./views/experiment.js'), 'experiments'],

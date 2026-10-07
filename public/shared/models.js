@@ -2,7 +2,7 @@
 // register one — but only from these families, so a prediction is always a deterministic
 // function of (place, time) that anybody can re-run. No free-text "predictions".
 
-import { angularDistanceDeg, flatMapDistanceKm, deg } from './geo.js';
+import { angularDistanceDeg, flatMapDistanceKm, deg, rad, EARTH_MEAN_RADIUS_KM } from './geo.js';
 import { sunPosition, sunsetTime, sunsetElevationDeg } from './sun.js';
 
 export const FAMILIES = {
@@ -29,6 +29,21 @@ export const FAMILIES = {
       const s = sunPosition(t);
       const d = flatMapDistanceKm(lat, lon, s.subLat, s.subLon);
       return { zenith_deg: deg(Math.atan2(d, height_km)) };
+    },
+  },
+  sphere_sun_distance: {
+    experiments: ['shadow-angle'],
+    name: 'Round Earth · Sun at a chosen distance',
+    short: 'Ball',
+    blurb:
+      'The Earth is a sphere and the Sun is a point a chosen distance from its centre. Far away, the rays are nearly parallel; near, they spread out. Shadow angle is the angle between straight-up and the direction to the Sun.',
+    params: [{ key: 'sun_distance_km', label: 'Sun distance from Earth’s centre (km)', min: 7000, max: 400000000, default: 150000000, step: 1000 }],
+    predict({ lat, lon, t }, { sun_distance_km: d }) {
+      const s = sunPosition(t);
+      const R = EARTH_MEAN_RADIUS_KM;
+      const c = Math.cos(rad(angularDistanceDeg(lat, lon, s.subLat, s.subLon))); // n · s
+      const num = d * c - R, den = Math.sqrt(d * d + R * R - 2 * d * R * c);
+      return { zenith_deg: deg(Math.acos(Math.max(-1, Math.min(1, num / den)))) };
     },
   },
   sunset_elevation: {

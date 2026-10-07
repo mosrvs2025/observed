@@ -22,10 +22,10 @@ export async function render(root) {
       <h1 class="h-xl" style="margin:18px 0 22px">Test the world <em>yourself.</em></h1>
       <p class="lede">You don’t have to believe anyone. Pick an experiment. Make a prediction. Measure reality — then compare it with everyone else on Earth who did the same.</p>
       <div class="cta">
-        <a class="btn primary lg" href="#/e/shadow-angle/run">Run the Shadow Stick →</a>
-        <a class="btn lg ghost" href="#/e/shadow-angle/observatory">Watch the world measure</a>
+        <a class="btn primary lg" href="#/discover">Start discovering →</a>
+        <a class="btn lg ghost" href="#/e/shadow-angle/run">Measure a shadow now</a>
       </div>
-      <p class="hint" style="margin-top:18px">No account. Your phone signs what you measure. All raw data is public.</p>
+      <p class="hint" style="margin-top:18px">No sign-up, no account. Made so anyone can follow it — even a kid. Open to any idea.</p>
     </div></div>
     <div class="hud" id="hud"><span class="live"></span><span id="hud-text">Loading the observatory…</span><button class="btn sm ghost" id="hud-live" style="min-height:28px;padding:5px 10px" hidden>Go live</button></div>
   </section>

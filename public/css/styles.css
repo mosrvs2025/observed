@@ -315,3 +315,32 @@ details.tech > summary { cursor: pointer; color: var(--dim); font-size: 13.5px; 
   .globe-hint h3 { font-size: 18px; margin-bottom: 6px; } .globe-hint ul { gap: 6px; font-size: 12.5px; margin-bottom: 8px; }
   .globe-caption { top: 56px; font-size: 12px; padding: 7px 12px; border-radius: 16px; }
 }
+
+/* ── Shadow Detectives (kid-simple discovery) ── */
+.kid { max-width: 760px; padding-top: 18px; padding-bottom: 120px; }
+.kid h1 { font: 400 clamp(34px, 7vw, 54px)/1.05 var(--serif); margin: 6px 0 12px; } .kid h1 em { color: var(--amber); }
+.kid h2 { font: 400 26px/1.15 var(--serif); margin: 0 0 12px; }
+.kid p.big { font-size: clamp(19px, 3.6vw, 23px); line-height: 1.45; color: var(--dim); margin: 0 0 18px; } .kid p.big b { color: var(--text); }
+.kid-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+.kid-top .dots { display: flex; gap: 6px; flex: 1; } .kid-top .dots i { flex: 1; height: 6px; border-radius: 6px; background: var(--ink-4); } .kid-top .dots i.done { background: var(--amber); } .kid-top .dots i.now { background: linear-gradient(90deg, var(--amber), var(--ink-4)); }
+.kid-card { background: var(--ink-2); border: 1px solid var(--line-2); border-radius: 22px; padding: 22px; margin: 16px 0; } .kid-card.center { text-align: center; }
+.kid-card p { font-size: 19px; }
+.kid-nav { display: flex; gap: 10px; margin-top: 22px; } .kid-nav .btn.primary { flex: 1; min-height: 60px; font-size: 19px; }
+@media (max-width: 760px) { .kid-nav { position: sticky; bottom: 70px; z-index: 5; margin: 22px -16px 0; padding: 12px 16px; background: linear-gradient(0deg, var(--ink) 70%, transparent); } }
+.choices { display: grid; gap: 12px; } .choices.two { grid-template-columns: 1fr 1fr; } .choices.three { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 520px) { .choices.two { grid-template-columns: 1fr; } .choices.three { grid-template-columns: 1fr; } }
+.choice { display: flex; align-items: center; gap: 12px; text-align: left; border: 2px solid var(--line-2); background: var(--ink); color: var(--text); border-radius: 18px; padding: 16px 18px; font: 500 18px/1.3 var(--sans); cursor: pointer; min-height: 64px; transition: .12s; }
+.choice:hover { border-color: var(--amber); } .choice.on { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, var(--ink)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 28%, transparent); }
+.choice .bullet { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-2); } .choice.on .bullet { border-color: var(--amber); background: radial-gradient(circle, var(--amber) 45%, transparent 50%); }
+.choices.two .choice, .choices.three .choice { flex-direction: column; justify-content: center; text-align: center; }
+.sticks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 14px 0; } @media (max-width: 640px) { .sticks { grid-template-columns: repeat(2, 1fr); } }
+.scard { background: var(--ink-2); border: 2px solid var(--line); border-radius: 16px; padding: 8px 8px 10px; display: grid; justify-items: center; gap: 2px; font-size: 14px; } .scard b { font-weight: 600; text-align: center; } .scard .tick { font: 600 12px var(--mono); min-height: 14px; color: var(--dim); }
+.scard.hi-long { border-color: var(--coral); } .scard.hi-short { border-color: var(--mint); }
+.kstick { width: 100%; height: auto; }
+.notice { background: color-mix(in srgb, var(--amber) 12%, var(--ink)); border-radius: 14px; padding: 12px 16px; font-size: 17px; margin: 14px 0 0; }
+input[type=range]#sun { height: 40px; } input[type=range]#sun::-webkit-slider-thumb { width: 30px; height: 30px; }
+.sunread { font-size: 20px; line-height: 1.35; margin-top: 6px; }
+.verdict { display: flex; gap: 18px; align-items: center; } .verdict .faces { flex: none; color: var(--text); }
+.tries { display: grid; gap: 8px; margin: 8px 0 12px; } .try { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; font-size: 16px; } .try.best { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, var(--ink)); }
+.hints { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.legend i { border-radius: 4px; }

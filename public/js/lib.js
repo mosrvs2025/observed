@@ -7,6 +7,7 @@ const EXTRA = ['var(--violet)', 'var(--amber)', 'var(--sky)', 'var(--rose)'];
 export function modelColor(m, i = 0) {
   if (m.family === 'flat_sun') return Math.abs(m.params.height_km - 4800) < 1 ? 'var(--coral)' : EXTRA[(m.params.height_km | 0) % EXTRA.length];
   if (m.family === 'sphere_parallel') return 'var(--mint)';
+  if (m.family === 'sphere_sun_distance') return 'var(--sky)';
   if (m.family === 'sunset_elevation') return Math.abs(m.params.e0_deg + 0.833) < 0.01 ? 'var(--mint)' : Math.abs(m.params.e0_deg) < 0.01 ? 'var(--coral)' : EXTRA[i % EXTRA.length];
   return EXTRA[i % EXTRA.length];
 }
