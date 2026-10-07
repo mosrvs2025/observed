@@ -1,0 +1,14 @@
+{
+  "name": "observed",
+  "version": "0.1.0",
+  "description": "OBSERVED — a distributed citizen observatory. Test the world yourself.",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "seed": "node --disable-warning=ExperimentalWarning server/seed.js",
+    "anchor": "node --disable-warning=ExperimentalWarning server/anchor.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""
+  }
+}
