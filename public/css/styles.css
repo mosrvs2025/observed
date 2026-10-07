@@ -344,3 +344,18 @@ input[type=range]#sun { height: 40px; } input[type=range]#sun::-webkit-slider-th
 .tries { display: grid; gap: 8px; margin: 8px 0 12px; } .try { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; font-size: 16px; } .try.best { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, var(--ink)); }
 .hints { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .legend i { border-radius: 4px; }
+
+/* ── Ask drawer, tappable sticks, pattern finder ── */
+.scard { cursor: pointer; font-family: inherit; color: inherit; text-align: center; } .scard:hover { border-color: var(--amber); } .scard .tick { font: 500 11px var(--sans); color: var(--faint); }
+.ask-fab { position: fixed; right: 18px; bottom: 168px; z-index: 40; display: inline-flex; gap: 8px; align-items: center; border: 2px solid var(--amber); background: var(--ink-2); color: var(--text); border-radius: 999px; padding: 12px 18px; font: 600 15px var(--sans); cursor: pointer; box-shadow: 0 10px 30px rgba(0, 0, 0, .25); }
+.ask-fab span { width: 24px; height: 24px; border-radius: 50%; background: var(--amber); color: var(--amber-ink); display: grid; place-items: center; font-weight: 700; }
+@media (min-width: 761px) { .ask-fab { bottom: 28px; } }
+.ask-bg { position: fixed; inset: 0; z-index: 140; background: rgba(5, 8, 16, .5); backdrop-filter: blur(3px); display: flex; justify-content: flex-end; align-items: stretch; }
+.ask { width: min(460px, 100%); background: var(--ink); border-left: 1px solid var(--line-2); padding: 18px; overflow: auto; display: grid; align-content: start; gap: 12px; }
+.ask h2 { font: 400 28px var(--serif); } .ask input { font-size: 17px; }
+@media (max-width: 760px) { .ask-bg { align-items: flex-end; } .ask { width: 100%; max-height: 82vh; border-left: 0; border-top: 1px solid var(--line-2); border-radius: 22px 22px 0 0; } }
+.qa { border: 1px solid var(--line); border-radius: 14px; background: var(--ink-2); margin-bottom: 8px; overflow: hidden; } .qa.open { border-color: var(--amber); }
+.qh { width: 100%; text-align: left; background: none; border: 0; color: var(--text); font: 600 16px/1.35 var(--sans); padding: 14px 16px; cursor: pointer; }
+.qb { padding: 0 16px; font-size: 15.5px; color: var(--dim); line-height: 1.5; } .qa.open .qb { padding: 0 16px 16px; } .qb p { margin: 0 0 10px; } .qb b { color: var(--text); }
+.faqlist { padding-left: 18px; margin: 0 0 10px; display: grid; gap: 6px; }
+svg.pat { width: 100%; height: auto; }

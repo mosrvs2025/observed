@@ -6,6 +6,7 @@ import { api } from '../api.js';
 import { reduceShadow } from '/shared/analysis.js';
 import { predictWith } from '/shared/models.js';
 import { placeName } from '../places.js';
+import { buildFaq, searchFaq, sticksLong, farFromMiddle } from '../faq.js';
 
 export const title = 'Shadow Detectives';
 
@@ -27,7 +28,9 @@ const kmText = (km) => (km >= 1e6 ? `${fmt(km / 1e6, km >= 1e7 ? 0 : 1)} million
 // Pick ~8 places spread from the far south to the far north.
 function pickSites(observations) {
   const real = observations.filter((o) => !o.synthetic);
-  const pool = (real.length >= 8 ? real : observations).map((o) => ({ o, d: reduceShadow(o) })).filter((x) => x.d && x.d.value < 78 && !x.o.adj?.exclude && !(x.o.adj?.inflate > 1));
+  const all = (real.length >= 8 ? real : observations).map((o) => ({ o, d: reduceShadow(o) })).filter((x) => x.d && x.d.value < 78 && !x.o.adj?.exclude && !(x.o.adj?.inflate > 1));
+  const noon = all.filter((x) => Math.abs(x.d.noon_offset_min) <= 30); // shadows compare best around local noon
+  const pool = noon.length >= 8 ? noon : all;
   const seen = new Set(), uniq = [];
   for (const x of pool.sort((a, b) => a.d.lat - b.d.lat)) { if (seen.has(x.o.observer_id)) continue; seen.add(x.o.observer_id); uniq.push(x); }
   if (uniq.length <= 8) return uniq;
@@ -73,9 +76,11 @@ export async function render(root, { day }) {
       <div class="kid-top"><div class="dots" aria-label="Step ${S.step + 1} of ${STEPS.length}">${raw(STEPS.map((_, i) => `<i class="${i < S.step ? 'done' : i === S.step ? 'now' : ''}"></i>`).join(''))}</div>
         <button class="icon-btn" id="say" aria-label="Read this page to me" title="Read to me">${raw(SPEAK_ICON)}</button></div>
       ${inner}
+      <button class="ask-fab" id="ask-fab"><span>?</span> Ask a question</button>
       <div class="kid-nav">${back && S.step > 0 ? html`<button class="btn" id="back">← Back</button>` : html`<a class="btn ghost" href="#/">Home</a>`}${nextLabel ? html`<button class="btn primary lg" id="next" ${nextDisabled ? 'disabled' : ''}>${nextLabel}</button>` : ''}</div>
     </div>`);
     $('#say', stage).addEventListener('click', speak);
+    $('#ask-fab', stage).addEventListener('click', () => openAsk());
     $('#back', stage)?.addEventListener('click', () => go(S.step - 1));
     $('#next', stage)?.addEventListener('click', () => (onNext ? onNext() : go(S.step + 1)));
   }
@@ -101,12 +106,91 @@ export async function render(root, { day }) {
       <h1>Look at the clues</h1>
       <p class="big">Every stick is the <b>same size</b>. Each one stands in a <b>different place</b> on Earth. The orange line is its shadow.</p>
       ${anySim ? html`<p class="hint">These are practice sticks (computer-made). Real sticks from real people will replace them as they measure — you can add yours!</p>` : ''}
-      <div class="sticks">${raw(sites.map((s) => `<div class="scard ${answered && s === longest ? 'hi-long' : ''} ${answered && s === shortest ? 'hi-short' : ''}">${stick(s, { mark: answered && s === longest ? { t: 'longest', c: 'var(--coral)' } : answered && s === shortest ? { t: 'shortest', c: 'var(--mint)' } : null })}<b>${esc(placeName(s.d.lat, s.d.lon))}</b></div>`).join(''))}</div>
+      <div class="sticks">${raw(sites.map((s, i) => `<button class="scard ${answered && s === longest ? 'hi-long' : ''} ${answered && s === shortest ? 'hi-short' : ''}" data-site="${i}" aria-label="Tell me about ${esc(placeName(s.d.lat, s.d.lon))}">${stick(s, { mark: answered && s === longest ? { t: 'longest', c: 'var(--coral)' } : answered && s === shortest ? { t: 'shortest', c: 'var(--mint)' } : null })}<b>${esc(placeName(s.d.lat, s.d.lon))}</b><span class="tick">tap to learn more</span></button>`).join(''))}</div>
       <div class="kid-card"><h2>Are all the shadows the same?</h2>
         <div class="choices two"><button class="choice ${J.same === 'yes' ? 'on' : ''}" data-a="yes">Yes, they look the same</button><button class="choice ${J.same === 'no' ? 'on' : ''}" data-a="no">No, some are different</button></div>
-        ${answered ? html`<p class="notice">${J.same === 'no' ? 'Good looking!' : 'Look again!'} Find the <b style="color:var(--coral)">longest</b> and the <b style="color:var(--mint)">shortest</b> shadow. They are marked now.</p>` : ''}
-      </div>`, { nextLabel: 'Next →', nextDisabled: !answered });
+        ${answered ? html`<p class="notice">${J.same === 'no' ? 'Good looking!' : 'Look again!'} Find the <b style="color:var(--coral)">longest</b> and the <b style="color:var(--mint)">shortest</b> shadow. They are marked now.</p>
+        <p><button class="btn sm" data-ask="why-long-short">Why is ${esc(placeName(shortest.d.lat, shortest.d.lon))} the shortest and ${esc(placeName(longest.d.lat, longest.d.lon))} the longest?</button></p>` : ''}
+      </div>
+      ${answered ? patternCard() : ''}`, { nextLabel: 'Next →', nextDisabled: !answered });
     $$('[data-a]', stage).forEach((b) => b.addEventListener('click', () => { J.same = b.dataset.a; save(J); look(); }));
+    $$('[data-site]', stage).forEach((b) => b.addEventListener('click', () => siteModal(sites[+b.dataset.site])));
+    $$('[data-pat]', stage).forEach((b) => b.addEventListener('click', () => { J.pat = b.dataset.pat; save(J); look(); $('#pattern', stage)?.scrollIntoView({ block: 'center' }); }));
+    $('[data-trend]', stage)?.addEventListener('click', () => { J.trend = !J.trend; save(J); look(); $('#pattern', stage)?.scrollIntoView({ block: 'center' }); });
+    $$('[data-ask]', stage).forEach((b) => b.addEventListener('click', () => openAsk(b.dataset.ask)));
+  }
+
+  // “Pattern finder”: shadow length against how far each place is from the middle of the world.
+  function patternCard() {
+    const W = 320, H = 190, m = { l: 40, r: 12, t: 12, b: 38 };
+    const maxLat = Math.max(70, ...sites.map((s) => Math.abs(s.d.lat))), maxLen = Math.max(3, ...sites.map((s) => sticksLong(s.d)));
+    const x = (v) => m.l + (v / maxLat) * (W - m.l - m.r), y = (v) => H - m.b - (v / maxLen) * (H - m.t - m.b);
+    const pts = sites.map((s) => ({ x: Math.abs(s.d.lat), y: sticksLong(s.d), n: placeName(s.d.lat, s.d.lon) }));
+    const n = pts.length, mx = pts.reduce((a, p) => a + p.x, 0) / n, my = pts.reduce((a, p) => a + p.y, 0) / n;
+    const slope = pts.reduce((a, p) => a + (p.x - mx) * (p.y - my), 0) / Math.max(1e-9, pts.reduce((a, p) => a + (p.x - mx) ** 2, 0)), icpt = my - slope * mx;
+    const trend = slope > 0.003 ? 'up' : slope < -0.003 ? 'down' : 'flat';
+    const said = J.pat, right = said && said === trend;
+    return html`<div class="kid-card" id="pattern"><h2>Pattern finder</h2>
+      <p class="hint" style="margin:0 0 10px">Each dot is one place. Across: how far from the middle of the world. Up: how long the shadow is.</p>
+      <svg viewBox="0 0 ${W} ${H}" class="pat" role="img" aria-label="Shadow length against distance from the middle of the world">
+        ${raw([0, 1, 2, 3].filter((v) => v <= maxLen).map((v) => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end" style="font:11px var(--mono);fill:var(--faint)">${v}</text>`).join(''))}
+        <line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="var(--line-2)"/>
+        <text x="${m.l}" y="${H - 8}" style="font:12px var(--sans);fill:var(--dim)">near the middle</text><text x="${W - m.r}" y="${H - 8}" text-anchor="end" style="font:12px var(--sans);fill:var(--dim)">far from the middle →</text>
+        <text transform="translate(12 ${H / 2}) rotate(-90)" text-anchor="middle" style="font:12px var(--sans);fill:var(--dim)">shadow (sticks)</text>
+        ${J.trend ? raw(`<line x1="${x(0)}" y1="${y(Math.max(0, icpt))}" x2="${x(maxLat)}" y2="${y(Math.max(0, icpt + slope * maxLat))}" stroke="var(--mint)" stroke-width="3" stroke-dasharray="6 5"/>`) : ''}
+        ${raw(pts.map((p) => `<circle cx="${x(p.x)}" cy="${y(p.y)}" r="7" fill="var(--amber)" stroke="var(--ink)" stroke-width="2"><title>${esc(p.n)}: ${fmt(p.y, 1)} sticks</title></circle>`).join(''))}
+      </svg>
+      <h3 style="font:500 19px var(--sans);margin:12px 0 8px">What do you notice?</h3>
+      <div class="choices three">${raw([['up', 'Farther from the middle → longer shadows'], ['down', 'Farther from the middle → shorter shadows'], ['flat', 'No pattern']].map(([k, t]) => `<button class="choice ${J.pat === k ? 'on' : ''}" data-pat="${k}">${esc(t)}</button>`).join(''))}</div>
+      ${said ? html`<p class="notice">${right ? 'Yes — you spotted it! That’s a real clue.' : 'Look at the dots again. Do they go up, go down, or wander?'} <button class="btn sm ghost" data-trend>${J.trend ? 'Hide' : 'Show'} the trend line</button></p>` : ''}
+      <p class="hint">Hold that clue in your head. Soon you’ll build a world and see if it can make the <i>same</i> pattern.</p></div>`;
+  }
+
+  function siteModal(s) {
+    const wrap = document.createElement('div'); wrap.className = 'modal-bg'; wrap.setAttribute('role', 'dialog');
+    const len = sticksLong(s.d);
+    wrap.innerHTML = `<div class="modal"><h2 class="h-md" style="margin-bottom:6px">${esc(placeName(s.d.lat, s.d.lon))}</h2>
+      <p class="big" style="font-size:19px;color:var(--dim);margin:0 0 8px">This stick stands ${esc(farFromMiddle(s.d))}.</p>
+      <p style="font-size:19px;margin:0 0 6px">Its shadow is <b>${esc(fmt(len, 1))} sticks</b> long.</p>
+      <p class="hint">${s.o.synthetic ? 'Practice stick (computer-made).' : 'Measured by a real person.'}</p>
+      <div class="row" style="margin-top:14px"><button class="btn primary" data-close>OK</button><button class="btn ghost" data-ask-from-modal>Why is it like this?</button></div></div>`;
+    document.body.append(wrap);
+    wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target.closest('[data-close]')) wrap.remove(); if (e.target.closest('[data-ask-from-modal]')) { wrap.remove(); openAsk('why-long-short'); } });
+  }
+
+  // ── Ask-a-question drawer (plain FAQ for now; an AI helper could be added behind it later) ──
+  let askEl = null;
+  function openAsk(focusId) {
+    closeAsk();
+    const faq = buildFaq({ sites, anySim, J, S, step: STEPS[S.step] });
+    askEl = document.createElement('div'); askEl.className = 'ask-bg';
+    askEl.innerHTML = `<aside class="ask" role="dialog" aria-label="Ask a question"><div class="row between"><h2>Ask a question</h2><button class="icon-btn" data-ask-close aria-label="Close">✕</button></div>
+      <input type="search" id="ask-q" placeholder="Type a question… (try “flat”, “real”, “why”)" autocomplete="off"><div id="ask-list"></div></aside>`;
+    document.body.append(askEl);
+    const list = $('#ask-list', askEl);
+    let openId = focusId || null;
+    const paint = (q = '') => {
+      const res = q ? searchFaq(faq, q) : [...faq.filter((e) => e.relevant), ...faq.filter((e) => !e.relevant)];
+      list.innerHTML = (q ? '' : '<div class="lbl" style="margin:6px 0">Questions about this page</div>') + (res.length ? res.map((e, i) => `${!q && !e.relevant && (i === 0 || res[i - 1].relevant) ? '<div class="lbl" style="margin:14px 0 6px">More questions</div>' : ''}<div class="qa ${openId === e.id ? 'open' : ''}" data-qa="${e.id}"><button class="qh" aria-expanded="${openId === e.id}">${esc(e.q)}</button><div class="qb">${openId === e.id ? e.a.s : ''}</div></div>`).join('') : '<p class="hint">No answer for that yet. Try other words — or ask someone you trust, and then test what they say.</p>');
+    };
+    paint();
+    askEl.addEventListener('click', (e) => {
+      if (e.target === askEl || e.target.closest('[data-ask-close]')) return closeAsk();
+      const qh = e.target.closest('.qh');
+      if (qh) { const id = qh.parentElement.dataset.qa; openId = openId === id ? null : id; paint($('#ask-q', askEl).value); return; }
+      if (e.target.closest('[data-faq-pattern]')) { closeAsk(); if (STEPS[S.step] !== 'look') { go(1); } setTimeout(() => { J.trend = true; J.pat ||= null; save(J); look(); $('#pattern', stage)?.scrollIntoView({ block: 'center' }); }, 50); return; }
+      const g = e.target.closest('[data-faq-go]'); if (g) { closeAsk(); go(+g.dataset.faqGo); return; }
+      if (e.target.closest('[data-faq-share]')) { shareLink(); }
+    });
+    $('#ask-q', askEl).addEventListener('input', (e) => { openId = null; paint(e.target.value); });
+    document.addEventListener('keydown', escClose);
+    if (focusId) setTimeout(() => askEl?.querySelector(`[data-qa="${focusId}"]`)?.scrollIntoView({ block: 'center' }), 30); else setTimeout(() => $('#ask-q', askEl)?.focus(), 30);
+  }
+  const escClose = (e) => { if (e.key === 'Escape') closeAsk(); };
+  function closeAsk() { askEl?.remove(); askEl = null; document.removeEventListener('keydown', escClose); }
+  async function shareLink() {
+    const url = `${location.origin}/#/discover`;
+    try { if (navigator.share) await navigator.share({ title: 'Be a shadow detective', text: 'Build your own world and test it against real shadows. No sign-up.', url }); else { await navigator.clipboard.writeText(url); toast('Link copied — send it to a friend'); } } catch { /* cancelled */ }
   }
 
   // ── 3. guess ──
@@ -208,5 +292,5 @@ export async function render(root, { day }) {
   }
 
   draw();
-  return () => { speechSynthesis?.cancel?.(); stage.remove(); };
+  return () => { speechSynthesis?.cancel?.(); closeAsk(); stage.remove(); };
 }
